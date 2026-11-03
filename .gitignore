@@ -1,0 +1,13 @@
+# third-party binaries and machine images are not committed
+*.img
+*.qcow2
+*.dmg
+*.zip
+*.tar.gz
+reference-efi/
+baremetal-efi/
+kexts/
+pkg/
+dump/
+.pylib/
+reference-efi-config.plist

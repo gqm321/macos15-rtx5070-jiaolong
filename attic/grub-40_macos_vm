@@ -1,0 +1,21 @@
+#!/bin/sh
+set -e
+KERNEL=$(ls -1 /boot/vmlinuz-* 2>/dev/null | sort -V | tail -1)
+INITRD=$(ls -1 /boot/initrd.img-* 2>/dev/null | sort -V | tail -1)
+[ -n "$KERNEL" ] && [ -n "$INITRD" ] || exit 0
+ROOTUUID=$(findmnt -no UUID /)
+# 沿用当前内核命令行，去掉 BOOT_IMAGE= 和可能已有的 macosvm=
+CMDLINE=$(tr ' ' '\n' < /proc/cmdline | grep -vE '^(BOOT_IMAGE=|macosvm=)' | tr '\n' ' ')
+cat <<ENTRY
+menuentry 'macOS VM  (RTX 5070 passthrough, MUX)' --id macosvm --class macos --class gnu-linux --class os {
+	recordfail
+	load_video
+	gfxmode \$linux_gfx_mode
+	insmod gzio
+	insmod part_gpt
+	insmod ext2
+	search --no-floppy --fs-uuid --set=root ${ROOTUUID}
+	linux	${KERNEL} ${CMDLINE} macosvm=1
+	initrd	${INITRD}
+}
+ENTRY
