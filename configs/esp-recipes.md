@@ -15,6 +15,9 @@ python3 tools/baremetal/build-efi-ref.py [flags] --out <image>
 |---|---|
 | `--cores N` | rewrites the four `algrey | Force cpuid_cores_per_package` patches to `N` (12 for 7845HX; the reference used 16) |
 | `--wifi` | adds `YYavicWiFi.kext` and appends `yyavic-cc=CN` to boot-args |
+| `--wifi-noverify` | also appends `-yyavicnoverify` (required on 15.8.2: 0.7.2 only accepts 24H32) |
+| `--voodoo-i2c` | adds VoodooI2C 2.9.1 + VoodooI2CHID, disables the PS/2 `VoodooInput`, appends `-vi2c-force-polling` |
+| `--restrictevents` | enables `RestrictEvents.kext` with `revpatch=sbvmm,cpuname` / `revcpuname=AMD Ryzen 9 7845HX` (update visibility) |
 | `--acpibl` | appends `nvrmacpibl=1` — required for brightness |
 | `--shutdown-tool` | adds `ResetSystem.efi` as menu entry "关机 Shutdown" with `Arguments = shutdown` |
 | `--voodoo-hda` | disables `AppleALC.kext`, adds `VoodooHDA.kext` (no audio on this machine) |
@@ -28,7 +31,8 @@ PS/2 kexts are added by default; the image is always 512 MiB FAT32, label `EFI`.
 
 | Image | Command | Purpose |
 |---|---|---|
-| `esp-baremetal.img` | `--cores 12 --wifi --acpibl --shutdown-tool` | **current daily driver** |
+| `esp-baremetal-15.8.2.img` | `--cores 12 --wifi --wifi-noverify --voodoo-i2c --restrictevents --acpibl --shutdown-tool` | **current daily driver (15.8.2)** |
+| `esp-baremetal.img` | `--cores 12 --wifi --acpibl --shutdown-tool` | 15.8.1 daily driver |
 | `esp-baremetal-bright.img` | `--cores 12 --wifi --acpibl` | brightness fix, before the shutdown tool existed |
 | `esp-baremetal-noacpibl.img` | `--cores 12 --wifi` | ruled `nvrmacpibl=1` out as the shutdown cause |
 | `esp-baremetal-ec.img` | `--cores 12 --wifi --acpibl --no-ec-ssdt` | the EC experiment that hangs boot (kept for reproduction) |
@@ -42,8 +46,13 @@ PS/2 kexts are added by default; the image is always 512 MiB FAT32, label `EFI`.
 ```
 -v debug=0x100 keepsyms=1 nvfb=1 nvaccel=1 nvfbheads=4 -nvkmsnosmooth
 amfi_get_out_of_my_way=0x1 amfi=0x80 ipc_control_port_options=0 gfxrst=4
-yyavic-cc=CN nvrmacpibl=1
+yyavic-cc=CN nvrmacpibl=1 -yyavicnoverify -vi2c-force-polling
 ```
+
+`-yyavicnoverify` is the YYavicWiFi 0.7.2 tester switch that bypasses its `24H32` build gate; 15.8.2
+is `24H232`. `-vi2c-force-polling` makes the I2C touchpad use polling instead of a GPIO interrupt.
+
+On 15.8.2, macOS → Shut Down powers off normally; `--shutdown-tool` is kept as a fallback.
 
 `debug=0x100` keeps a panic on screen instead of rebooting — useful, but it also means a panic looks like
 a frozen machine.
@@ -71,14 +80,20 @@ AppleALC.kext
 AppleMCEReporterDisabler.kext
 NVMeFix.kext
 RealtekRTL8111.kext
+RestrictEvents.kext
 USBToolBox.kext
 UTBDefault.kext
 ForgedInvariant.kext
-VoodooPS2Controller.kext + PlugIns/{VoodooInput,VoodooPS2Keyboard,VoodooPS2Mouse,VoodooPS2Trackpad}
+VoodooPS2Controller.kext + PlugIns/{VoodooPS2Keyboard,VoodooPS2Mouse,VoodooPS2Trackpad}
 YYavicWiFi.kext
+VoodooI2C.kext + PlugIns/{VoodooInput,VoodooGPIO,VoodooI2CServices}
+VoodooI2CHID.kext
 ```
 
-`RestrictEvents.kext` and `WhateverGreen.kext` ship in the reference tree but are disabled.
+The PS/2 `VoodooInput.kext` entry is disabled when VoodooI2C is present, so only one `VoodooInput`
+provider loads. `RestrictEvents.kext` is now enabled (`revpatch=sbvmm,cpuname`,
+`revcpuname=AMD Ryzen 9 7845HX`) so the 15.8.2 update appears in System Settings; `revcpuname` is
+cosmetic (the reference EFI came from an 8945HX machine). `WhateverGreen.kext` remains disabled.
 
 **Drivers**: `HfsPlus.efi`, `OpenRuntime.efi`, `ResetNvramEntry.efi`.
 **Picker**: built-in (`PickerMode = Builtin`), `Timeout = 5`, `ShowPicker = True`, `ScanPolicy = 0`.

@@ -2,11 +2,13 @@
 
 A complete write-up of getting **macOS Sequoia 15.8.1** running on an AMD Ryzen 9 7845HX laptop
 with an NVIDIA RTX 5070 Laptop GPU in **MUX (discrete-only) mode** — first inside QEMU/KVM with
-GPU passthrough, then **migrated to a bare-metal partition** driven by a self-built OpenCore.
+GPU passthrough, then **migrated to a bare-metal partition** driven by a self-built OpenCore. The
+bare-metal install was later updated in place to **15.8.2 (24H232)**.
 
-> **TL;DR** — bare metal is usable: desktop, Metal 3, brightness keys/slider, internal keyboard and
-> Wi-Fi all work. Internal audio (Conexant SN6140) and internal Bluetooth (MT7922) are unsupported,
-> "shut down" reboots (with a working workaround), and the I2C touchpad is not configured.
+> **TL;DR** — bare metal is usable: desktop, Metal 3, brightness keys/slider, internal keyboard,
+> Wi-Fi and the I2C touchpad all work. Internal audio (Conexant SN6140) and internal Bluetooth
+> (MT7922) are unsupported. macOS 15.8.2 fixed the S5 shutdown reset; the OpenCore "Shutdown"
+> item is kept as a fallback.
 
 ---
 
@@ -21,10 +23,11 @@ GPU passthrough, then **migrated to a bare-metal partition** driven by a self-bu
 | Wi-Fi | MediaTek MT7922 (`14C3:7922`) | works; its Bluetooth half is USB `0489:E0D8` and does **not** work |
 | Ethernet | Realtek RTL8125 | no macOS driver available |
 | Audio | **Conexant SN6140** (`14F1:1F87`, subsystem `1D05:3010`) | not in AppleALC's codec table |
-| Input | internal keyboard is **PS/2 (i8042)**; touchpad is I2C HID (`093A:0255`) | keyboard needs VoodooPS2 |
+| Input | internal keyboard is **PS/2 (i8042)**; touchpad is I2C HID (`093A:0255`) | keyboard needs VoodooPS2; touchpad needs VoodooI2C |
 | Storage | ZHITAI TiPlus7100 1 TB (Linux + macOS); YMTC PC41Q (Windows) | ⚠️ NVMe numbering **swaps between boots** — always use `/dev/disk/by-id/` |
 
-Software: **macOS 15.8.1 (24H32)**, **NullMoth 1401 / NVIDIA driver 2.6.5**, OpenCore with a config
+Software: **macOS 15.8.2 (24H232; installed as 15.8.1 and updated in place)**, **NullMoth 1401 /
+NVIDIA driver 2.6.5** (the 1401 app updates the driver independently), OpenCore with a config
 derived from the community EFI described in [`docs/04-reference-notes.md`](docs/04-reference-notes.md),
 SMBIOS **MacPro7,1** (`UpdateSMBIOSMode = Custom`).
 
@@ -61,13 +64,13 @@ with a self-built OpenCore. See [`docs/02-baremetal-route.md`](docs/02-baremetal
 | GPU | ✅ | NVRM / NVRMFB / NVAccel / NVRMAGDC all loaded, 8 GiB BAR is fine |
 | Brightness (keys + slider) | ✅ | needs `nvrmacpibl=1` boot-arg — see troubleshooting #6 |
 | Internal keyboard | ✅ | VoodooPS2Controller + plugins |
-| Wi-Fi | ✅ | YYavicWiFi 0.7.2; captive-portal login works |
+| Wi-Fi | ✅ | YYavicWiFi 0.7.2 + `-yyavicnoverify` on 15.8.2; captive-portal login works |
 | External mouse / USB | ✅ | |
-| Touchpad | ❌ | `093A:0255` I2C HID; needs VoodooI2C + GPIO pinning, not attempted |
+| Touchpad | ✅ | `093A:0255` I2C HID; VoodooI2C 2.9.1 + VoodooI2CHID + `-vi2c-force-polling` |
 | Internal audio | ❌ | Conexant SN6140 is not in AppleALC; use a USB sound card |
 | Internal Bluetooth | ❌ | no MT7922 BT transport in macOS; a USB BT dongle works (A2DP verified) |
 | Battery | ❌ | the real EC is shadowed by a fake one; enabling it hangs boot |
-| Shut down | 🟡 | macOS S5 resets instead of powering off; **workaround**: the "Shutdown" item in the OpenCore menu |
+| Shut down | ✅ | fixed by macOS 15.8.2; the OpenCore "Shutdown" item is kept as a fallback |
 | Resolution / HiDPI | 🟡 | 1280×800 is the only crisp mode; the driver rejects custom HiDPI framebuffers |
 
 ---
@@ -94,9 +97,10 @@ attic/                      retired GRUB entry and systemd unit, kept verbatim
 # 0) deps: python3 + pyfatfs (builds the FAT32 image entirely in user space, no root needed)
 python3 -m pip install --target .pylib pyfatfs
 
-# 1) build the ESP image (brightness arg, Wi-Fi, PS/2 keyboard, Shutdown menu item)
-python3 tools/baremetal/build-efi-ref.py --cores 12 --wifi --acpibl --shutdown-tool \
-        --out esp-baremetal.img
+# 1) build the ESP image (brightness arg, Wi-Fi + 15.8.2 gate bypass, PS/2 keyboard,
+#    I2C touchpad, RestrictEvents for update visibility, Shutdown menu item kept as a fallback)
+python3 tools/baremetal/build-efi-ref.py --cores 12 --wifi --wifi-noverify \
+        --voodoo-i2c --restrictevents --acpibl --shutdown-tool --out esp-baremetal.img
 
 # 2) flash it to p4 (⚠️ by-id only — nvme0n1/nvme1n1 swap on this machine)
 sudo dd if=esp-baremetal.img \
@@ -104,12 +108,13 @@ sudo dd if=esp-baremetal.img \
 ```
 
 `build-efi-ref.py` expects `reference-efi/` (the OpenCore + kext tree) and `kexts/` (YYavicWiFi,
-VoodooPS2, VoodooHDA) next to the repo root. Those third-party binaries are **not** included here;
-see [`docs/04-reference-notes.md`](docs/04-reference-notes.md) for how to obtain them.
+VoodooPS2, VoodooI2C/VoodooI2CHID, VoodooHDA) next to the repo root. Those third-party binaries are
+**not** included here; see [`docs/04-reference-notes.md`](docs/04-reference-notes.md) for how to
+obtain them.
 
 ---
 
-## Three lessons that cost us the most time
+## Four lessons that cost us the most time
 
 1. **Do not extrapolate a working VM config to bare metal.** The VM config carried
    `Booter>Quirks>DisableVariableWrite = True`, which silently blocks NVRAM writes — so NullMoth's
@@ -123,6 +128,10 @@ see [`docs/04-reference-notes.md`](docs/04-reference-notes.md) for how to obtain
    and, per OpenCore's documentation, only supports `0`; `UEFI>ResizeGpuBars` runs *before* boot.efi
    and takes `n` = 2^n MB. Writing `12` into the former means **4 KiB**, not 4 GiB — it kills the boot.
    We made exactly that mistake.
+4. **A point update can silently disable a kext that pins the OS build.** YYavicWiFi 0.7.2 checks
+   `Darwin == 24.6` and `OS Build Version == 24H32`; 15.8.2 is `24H232`, so the kext disabled its
+   native Wi-Fi layer instead of panicking. `-yyavicnoverify` is upstream's tester switch; the real
+   fix is a kext built for the new build.
 
 ---
 

@@ -31,8 +31,13 @@ Regenerate your own with [GenSMBIOS](https://github.com/corpnewt/GenSMBIOS) or O
 | boot-args | `-v debug=0x100 keepsyms=1 nvfb=1 nvaccel=1 nvfbheads=4 -nvkmsnosmooth amfi_get_out_of_my_way=0x1 amfi=0x80 ipc_control_port_options=0 gfxrst=4` | VM-flavoured set + `npci=0x2000` | `nvfb*`/`gfxrst=4` are NullMoth-specific |
 | Kexts | Lilu, AMFIPass, AppleALC, AppleMCEReporterDisabler, NVMeFix, RealtekRTL8111, USBToolBox, UTBDefault, VirtualSMC, ForgedInvariant (RestrictEvents and WhateverGreen present but disabled) | Lilu, VirtualSMC, AMFIPass, USBPorts, VMHide | `ForgedInvariant` and `USBToolBox` matter on AMD |
 
-`--cores`, `--wifi`, `--acpibl`, `--shutdown-tool` in `build-efi-ref.py` are the only deltas we apply on
-top of it today. Everything else is left exactly as the reference had it — that is deliberate.
+`--cores`, `--wifi`, `--wifi-noverify`, `--voodoo-i2c`, `--acpibl`, `--shutdown-tool` in
+`build-efi-ref.py` are the deltas we apply on top of it today. `--wifi-noverify` adds
+`-yyavicnoverify` (YYavicWiFi 0.7.2 only accepts 24H32; 15.8.2 is 24H232) and `--voodoo-i2c` adds
+VoodooI2C 2.9.1 + VoodooI2CHID + `-vi2c-force-polling` for the I2C touchpad. `RestrictEvents` is
+enabled with `revpatch=sbvmm,cpuname` to make the 15.8.2 update appear in System Settings; the
+`cpuname` part is cosmetic (the reference EFI came from an 8945HX machine, corrected to 7845HX).
+Everything else is left exactly as the reference had it — that is deliberate.
 
 ---
 
@@ -76,13 +81,14 @@ Driver boot-args we enumerated from the source/binary (useful when you suspect t
 | OpenCore + `ResetSystem.efi` + other EFI tools | https://github.com/acidanthera/OpenCorePkg/releases (`OpenCore-*-RELEASE.zip`, `X64/EFI/OC/...`) |
 | Lilu / VirtualSMC / AppleALC / NVMeFix / WhateverGreen / RestrictEvents | https://github.com/acidanthera (each release zip) |
 | VoodooPS2Controller (PS/2 keyboard + touchpad) | https://github.com/acidanthera/VoodooPS2/releases |
+| VoodooI2C 2.9.1 + VoodooI2CHID (I2C touchpad) | https://github.com/VoodooI2C/VoodooI2C/releases |
 | VoodooHDA | https://github.com/CloverHackyColor/VoodooHDA/releases (`Release368`) |
 | AMFIPass | https://github.com/dhinakg/AMFIPass |
 | USBToolBox + UTBDefault | https://github.com/USBToolBox/kext, https://github.com/USBToolBox/tool |
 | ForgedInvariant | https://github.com/ChefKissInc/ForgedInvariant |
 | RealtekRTL8111 | https://github.com/Mieze/RTL8111_driver_for_OS_X |
 | AppleMCEReporterDisabler | https://github.com/acidanthera/bugtracker (attached in the AMD guides) |
-| YYavicWiFi (MT7922) | https://github.com/yusufcanyavic/YYavicWiFi (`0.7.2`) |
+| YYavicWiFi (MT7922) | https://github.com/yusufcanyavic/YYavicWiFi (`0.7.2`; needs `-yyavicnoverify` on 15.8.2) |
 | NullMoth 1401 / NVIDIA driver | https://github.com/nullmoth/nvidia-macos-driver (releases) |
 
 Expected tree layout for `build-efi-ref.py`:
@@ -91,6 +97,8 @@ Expected tree layout for `build-efi-ref.py`:
 reference-efi/                 OpenCore tree (BOOT/ + OC/{OpenCore.efi,config.plist,Drivers,Kexts,Tools,ACPI})
 kexts/yyavic/YYavicWiFi.kext
 kexts/voodoo-ps2/VoodooPS2Controller.kext
+kexts/voodoo-i2c/VoodooI2C.kext
+kexts/voodoo-i2c/VoodooI2CHID.kext
 kexts/voodoo-hda/VoodooHDA.kext          (optional, --voodoo-hda)
 tools/efi/ResetSystem.efi                (optional, --shutdown-tool)
 ```

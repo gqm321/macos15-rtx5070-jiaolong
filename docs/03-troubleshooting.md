@@ -4,7 +4,7 @@ Everything below actually happened on this machine. Each entry lists the symptom
 turned out to be, and what fixed it (or why it cannot be fixed). The **dead ends** section at the end is
 deliberately blunt: those were tested and do not work here.
 
-Machine: MECHREVO JIAOLONG, Ryzen 9 7845HX, RTX 5070 Laptop (MUX), macOS 15.8.1 (24H32),
+Machine: MECHREVO JIAOLONG, Ryzen 9 7845HX, RTX 5070 Laptop (MUX), macOS 15.8.2 (24H232),
 NullMoth 1401 / driver 2.6.5, OpenCore with the reference config (MacPro7,1).
 
 ---
@@ -86,19 +86,28 @@ VoodooPS2Controller.kext/Contents/PlugIns/VoodooPS2Mouse.kext
 VoodooPS2Controller.kext/Contents/PlugIns/VoodooPS2Trackpad.kext
 ```
 
-`build-efi-ref.py` adds them by default. The touchpad itself is I2C HID (`093A:0255`) and still needs
-VoodooI2C + GPIO pinning — out of scope here.
+`build-efi-ref.py` adds them by default. The touchpad itself is I2C HID (`093A:0255`); see #4.
 
 ---
 
-## 4. Mouse cursor works but nothing else on the touchpad
+## 4. Touchpad (I2C HID) — solved with VoodooI2C
 
-**Cause.** `UNIW0001:00 093A:0255` is an **I2C HID** device. macOS needs `VoodooI2C` + `VoodooI2CHID`,
-plus an `SSDT` that pins the GPIO interrupt (the exact pin differs per board and has to be read out of the
-DSDT). A USB mouse works out of the box.
+**Cause.** `UNIW0001:00 093A:0255` is an **I2C HID** device. macOS has no generic I2C-HID driver; it
+needs `VoodooI2C` + `VoodooI2CHID`. A USB mouse works out of the box.
 
-**Status.** Not attempted. If you want it: start from `VoodooI2C`'s pinning guide and expect several
-reboots.
+**Fix (working since 2026-11-07).** VoodooI2C 2.9.1 + VoodooI2CHID, injected through OpenCore:
+
+```
+VoodooI2C.kext/Contents/PlugIns/VoodooInput.kext
+VoodooI2C.kext/Contents/PlugIns/VoodooGPIO.kext
+VoodooI2C.kext/Contents/PlugIns/VoodooI2CServices.kext
+VoodooI2C.kext
+VoodooI2CHID.kext
+```
+
+and `-vi2c-force-polling` in boot-args. On this board the GPIO interrupt does not need an `SSDT`
+pin; polling is enough. The `VoodooPS2Controller` copy of `VoodooInput.kext` is disabled so only one
+`VoodooInput` provider is present. `build-efi-ref.py --voodoo-i2c` performs all of this.
 
 ---
 
@@ -154,13 +163,28 @@ no MT7922 Bluetooth transport in macOS.
 
 ---
 
-## 7. Wi-Fi (works)
+## 7. Wi-Fi (works; needs `-yyavicnoverify` on 15.8.2)
 
-YYavicWiFi 0.7.2 drives the MT7922 (`14C3:7922`) natively. Requirements observed:
+YYavicWiFi 0.7.2 drives the MT7922 (`14C3:7922`) natively. Requirements observed on 15.8.2:
 
-- macOS 15.8.1 (24H32) — the kext checks the build,
+- macOS 15.8.2 (24H232) **plus `-yyavicnoverify` in boot-args**,
 - `yyavic-cc=CN` in boot-args,
 - `csr-active-config = 0x0A43` plus the AMFI bypass arguments (`amfi=0x80 amfi_get_out_of_my_way=0x1`).
+
+**Why the extra flag.** 0.7.2 has a hard build gate in `yy_autoarm_fire()`: Darwin must be 24.6 and
+the `OS Build Version` property must equal `24H32` (15.8.1). 15.8.2 reports `24H232`, so without the
+flag the kext logs
+
+```
+YYavicWiFi: OS build 24H232 (needs 24H32, macOS 15.8.1)
+YYavicWiFi: PCI: NOT arming, unsupported macOS: 24H232
+YYavicWiFi: native Wi-Fi layer disabled, unsupported macOS: 24H232
+```
+
+and leaves the radio attached but the macOS Wi-Fi interface absent. `-yyavicnoverify` skips the check.
+Upstream marks it testers-only because the native layer is built against the 24H32 IO80211/Skywalk
+layout; it works on 15.8.2, but a future build that changes those vtables can panic — remove the flag
+and wait for a kext built for that build if it does.
 
 Captive-portal Wi-Fi (campus network) works. Joining from the shell:
 
@@ -169,9 +193,9 @@ networksetup -listallhardwareports
 networksetup -setairportnetwork en0 "SSID" "password"
 ```
 
-Harmless noise: the kext prints a heartbeat to the console (`YYavicMtkWlan: hb t=… poll_fires=0 delta=0`)
-and, on some builds, `YYavicWiFi: native Wi-Fi layer disabled, unsupported macOS: OS build not published yet`.
-That message alone does not mean Wi-Fi is broken.
+Harmless noise: the kext prints a heartbeat to the console (`YYavicMtkWlan: hb t=… poll_fires=0 delta=0`).
+The transient `OS build not published yet` line is part of the same gate; the fatal combination is
+`OS build … (needs 24H32 …)` followed by `NOT arming` / `native Wi-Fi layer disabled`.
 
 ---
 
@@ -202,9 +226,16 @@ We first suspected it of breaking shutdown — it does not (see #9). `build-efi-
 
 ---
 
-## 9. "Shut down" reboots the machine (unresolved, workaround available)
+## 9. "Shut down" reboots the machine (fixed by macOS 15.8.2; workaround kept)
 
-**Symptom.** macOS → Shut Down → the machine powers back up, like a restart.
+**2026-11-07 update.** After updating 15.8.1 → 15.8.2 (24H232), macOS → Shut Down powers the machine
+off normally; the S5 reset no longer reproduces. The 15.8.2 update is the likely cause: it is the only
+OS-level change, and the old diagnosis had already ruled out the NVIDIA driver (Recovery also rebooted)
+and `nvrmacpibl=1`. RestrictEvents was enabled only to make the 15.8.2 update appear in System
+Settings (the CPU-name change is cosmetic), not to change S5. The OpenCore **"关机 Shutdown"** item is
+kept as a fallback.
+
+**Symptom (15.8.1).** macOS → Shut Down → the machine powers back up, like a restart.
 
 **Evidence gathered.**
 
@@ -243,14 +274,13 @@ Two plausible remaining causes:
 1. the `PWDE` write into the `GSMM` MMIO window entering an SMI handler that resets the platform, or
 2. macOS never calling `_PTS` (then `PWDE` is never set and the EC treats the SLP_S5# assertion as a reset).
 
-**Workaround (in use).** `tools/baremetal/build-efi-ref.py --shutdown-tool` adds a menu entry
-**"关机 Shutdown"** (`ResetSystem.efi`, `Arguments = shutdown`). When macOS "shuts down", it reboots into
-OpenCore; pick that entry and the machine powers off. Two seconds of extra work, zero risk.
+**Workaround (kept as fallback).** `tools/baremetal/build-efi-ref.py --shutdown-tool` adds a menu entry
+**"关机 Shutdown"** (`ResetSystem.efi`, `Arguments = shutdown`). If a future update brings the reset
+back, pick that entry and the machine powers off. Two seconds of extra work, zero risk.
 
-**Next experiment (not yet done).** Rename `_PTS`→`ZPTS` with an `ACPI>Patch` and supply an *empty* `_PTS`
-from an SSDT. If the machine then powers off, the reset lives inside `SPTS`; if it still reboots, macOS is
-not reaching `_PTS` at all. A CMOS "mailbox" byte written from `_PTS` would tell us which argument macOS
-passes.
+**Next experiment (no longer needed).** Rename `_PTS`→`ZPTS` with an `ACPI>Patch` and supply an *empty*
+`_PTS` from an SSDT. This would have told us whether the reset lived inside `SPTS`; 15.8.2 fixed the
+behavior before we ran it, so the experiment is kept only for reference.
 
 ---
 

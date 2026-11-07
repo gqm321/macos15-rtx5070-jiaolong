@@ -91,8 +91,8 @@ On our image that prints `skip=51205 count=60241910` (start 209,735,680 bytes, s
 (`reference-efi/`) plus the extra kexts in `kexts/`, and patches a few machine-specific values:
 
 ```bash
-python3 tools/baremetal/build-efi-ref.py --cores 12 --wifi --acpibl --shutdown-tool \
-        --out esp-baremetal.img
+python3 tools/baremetal/build-efi-ref.py --cores 12 --wifi --wifi-noverify \
+        --voodoo-i2c --restrictevents --acpibl --shutdown-tool --out esp-baremetal.img
 ```
 
 What it changes relative to the reference config:
@@ -101,13 +101,17 @@ What it changes relative to the reference config:
 |---|---|
 | `--cores 12` | rewrites the four `algrey | Force cpuid_cores_per_package` patches from `16` to `12` (8945HX → 7845HX) |
 | `--wifi` | adds `YYavicWiFi.kext` (MT7922) and `yyavic-cc=CN` to boot-args |
+| `--wifi-noverify` | also adds `-yyavicnoverify`; required on 15.8.2 because 0.7.2 only accepts 24H32 |
+| `--voodoo-i2c` | adds VoodooI2C 2.9.1 + VoodooI2CHID, disables the PS/2 `VoodooInput`, appends `-vi2c-force-polling` |
+| `--restrictevents` | enables `RestrictEvents.kext` with `revpatch=sbvmm,cpuname` and `revcpuname=AMD Ryzen 9 7845HX` (update visibility; CPU name is cosmetic) |
 | `--acpibl` | adds `nvrmacpibl=1` — **this is what makes brightness work** |
 | `--shutdown-tool` | adds `ResetSystem.efi` as a menu item named "关机 Shutdown" (`Arguments = shutdown`) |
 | `--voodoo-hda` | replaces AppleALC with VoodooHDA (did **not** produce audio on this machine — see troubleshooting) |
 | `--no-ec-ssdt` | disables the reference `SSDT-EC` (hangs boot on this machine — do not use) |
 
 The PS/2 keyboard kexts (`VoodooPS2Controller` + plugins) are always added, in the correct order
-(controller first, then its PlugIns).
+(controller first, then its PlugIns). With `--voodoo-i2c`, the PS/2 copy of `VoodooInput.kext` is
+disabled so only the VoodooI2C copy provides `VoodooInput`.
 
 > Why not build the ESP with `mtools`/`mount`? `mtools` isn't installed, and mounting a FAT image needs
 > root. The script writes the FAT32 filesystem directly with `pyfatfs`, so the whole build is a normal
