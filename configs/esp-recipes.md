@@ -21,6 +21,7 @@ python3 tools/baremetal/build-efi-ref.py [flags] --out <image>
 | `--acpibl` | appends `nvrmacpibl=1` — required for brightness |
 | `--shutdown-tool` | adds `ResetSystem.efi` as menu entry "关机 Shutdown" with `Arguments = shutdown` |
 | `--voodoo-hda` | disables `AppleALC.kext`, adds `VoodooHDA.kext` (no audio on this machine) |
+| `--sn6140-audio` | swaps in the community SN6140 AppleALC (`kexts/applealc-sn6140/`), appends `alcid=15 alcdelay=1000`, writes `layout-id` as data 15 (mutually exclusive with `--voodoo-hda`) |
 | `--no-ec-ssdt` | disables `SSDT-EC.aml` and `SSDT-RTCAWAC.aml` (hangs boot here — reproduce only) |
 | `--no-ps2` | omits `VoodooPS2Controller` (debug only: without it the internal keyboard is dead) |
 | `--out PATH` | output image (default `esp-baremetal.img`) |
@@ -37,6 +38,7 @@ PS/2 kexts are added by default; the image is always 512 MiB FAT32, label `EFI`.
 | `esp-baremetal-noacpibl.img` | `--cores 12 --wifi` | ruled `nvrmacpibl=1` out as the shutdown cause |
 | `esp-baremetal-ec.img` | `--cores 12 --wifi --acpibl --no-ec-ssdt` | the EC experiment that hangs boot (kept for reproduction) |
 | `esp-baremetal-audio.img` | `--cores 12 --wifi --acpibl --voodoo-hda` | VoodooHDA attempt (no audio) |
+| `esp-baremetal-sn6140.img` | `--cores 12 --wifi --wifi-noverify --voodoo-i2c --restrictevents --acpibl --shutdown-tool --sn6140-audio` | **audio works (2026-11-07)** — live ESP was patched in place; this image is the reproducible form |
 | `esp-baremetal-wifi.img` | `--cores 12 --wifi` (before PS/2 support existed) | first successful desktop + Wi-Fi |
 
 ## Effective configuration of the daily driver
@@ -51,6 +53,11 @@ yyavic-cc=CN nvrmacpibl=1 -yyavicnoverify -vi2c-force-polling
 
 `-yyavicnoverify` is the YYavicWiFi 0.7.2 tester switch that bypasses its `24H32` build gate; 15.8.2
 is `24H232`. `-vi2c-force-polling` makes the I2C touchpad use polling instead of a GPIO interrupt.
+
+The live ESP was additionally patched on 2026-11-07 with the community SN6140 AppleALC (speakers,
+wired-headphone output, mic input and headphone hot-plug verified working); its boot-args end in
+`alcid=15 alcdelay=1000` and `layout-id` is data 15. Add `--sn6140-audio` to the recipe above to get
+that from a clean build (after `tools/baremetal/fetch-sn6140-applealc.sh`).
 
 On 15.8.2, macOS → Shut Down powers off normally; `--shutdown-tool` is kept as a fallback.
 

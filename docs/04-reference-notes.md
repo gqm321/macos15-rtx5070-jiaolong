@@ -81,6 +81,7 @@ Driver boot-args we enumerated from the source/binary (useful when you suspect t
 |---|---|
 | OpenCore + `ResetSystem.efi` + other EFI tools | https://github.com/acidanthera/OpenCorePkg/releases (`OpenCore-*-RELEASE.zip`, `X64/EFI/OC/...`) |
 | Lilu / VirtualSMC / AppleALC / NVMeFix / WhateverGreen / RestrictEvents | https://github.com/acidanthera (each release zip) |
+| AppleALC with SN6140 / layout 15 (community, DEBUG) | https://github.com/chenhggu6475/Senary-SN6140-AppleALC-Hackintosh (`SN6140-Test-v1`; verified working on this unit 2026-11-07; `tools/baremetal/fetch-sn6140-applealc.sh` downloads and verifies it) |
 | VoodooPS2Controller (PS/2 keyboard + touchpad) | https://github.com/acidanthera/VoodooPS2/releases |
 | VoodooI2C 2.9.1 + VoodooI2CHID (I2C touchpad) | https://github.com/VoodooI2C/VoodooI2C/releases |
 | VoodooHDA | https://github.com/CloverHackyColor/VoodooHDA/releases (`Release368`) |

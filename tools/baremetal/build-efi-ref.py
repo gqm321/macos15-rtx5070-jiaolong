@@ -11,6 +11,7 @@
   - 可选 --wifi：加 YYavicWiFi.kext（MT7922），默认不加
   - 可选 --wifi-noverify：再加 -yyavicnoverify（15.8.2 需要；0.7.2 只认 24H32）
   - 可选 --voodoo-i2c：加 VoodooI2C/VoodooI2CHID 和 -vi2c-force-polling（I2C 触控板）
+  - 可选 --sn6140-audio：换成社区 SN6140 定制版 AppleALC（layout 15）+ alcid=15
 其余（SMBIOS MacPro7,1 / ACPI SSDT / 27 条内核补丁 / IONDRVFramebuffer Block /
 iGPU disable-gpu / NullMoth boot-args / quirk 全集）一律照抄，因为它们是验证过的。
 """
@@ -33,6 +34,8 @@ SIZE_MB = 512
 # 所以进了桌面也打不了字。VoodooPS2Controller 的插件必须排在 Controller 之后。
 PS2_ROOT = os.path.join(W, "kexts", "voodoo-ps2", "VoodooPS2Controller.kext")
 HDA_ROOT = os.path.join(W, "kexts", "voodoo-hda", "VoodooHDA.kext")
+# 社区定制版 AppleALC（SN6140 / layout 15），由 fetch-sn6140-applealc.sh 下载
+SN6140_ROOT = os.path.join(W, "kexts", "applealc-sn6140", "AppleALC.kext")
 I2C_ROOT = os.path.join(W, "kexts", "voodoo-i2c")
 SHUTDOWN_TOOL = os.path.join(W, "tools", "efi", "ResetSystem.efi")
 PS2_ENTRIES = [
@@ -60,17 +63,20 @@ SKIP_PREFIX = ("config.plist.", ".content")
 SKIP_FILES = {"config.plist"}
 
 
-def copy_tree(fs, src_dir, dst_dir, top=False):
+def copy_tree(fs, src_dir, dst_dir, top=False, rel="", skip=()):
     for name in sorted(os.listdir(src_dir)):
         if name.startswith("._") or name.startswith(SKIP_PREFIX) or name in SKIP_FILES:
             continue
         if name in SKIP_DIRS:
             continue
+        r = f"{rel}/{name}" if rel else name
+        if r in skip:
+            continue
         s = os.path.join(src_dir, name)
         d = dst_dir.rstrip("/") + "/" + name
         if os.path.isdir(s):
             fs.makedirs(d)
-            copy_tree(fs, s, d)
+            copy_tree(fs, s, d, rel=r, skip=skip)
         else:
             with open(s, "rb") as f:
                 fs.writebytes(d, f.read())
@@ -97,9 +103,17 @@ def main():
                     help="加 nvrmacpibl=1：让 NVRM 读 ACPI 的 NBCI _DSM/_DOD，笔记本内置屏亮度靠它（上游默认关闭，少数机器会挂）")
     ap.add_argument("--voodoo-hda", action="store_true",
                     help="用 VoodooHDA 顶替 AppleALC（本机 codec 是 Conexant SN6140，AppleALC 不支持）")
+    ap.add_argument("--sn6140-audio", action="store_true",
+                    help="用社区定制版 AppleALC（SN6140，14F1:1F87）并加 alcid=15 alcdelay=1000；"
+                         "需要先跑 tools/baremetal/fetch-sn6140-applealc.sh")
     a = ap.parse_args()
     if a.wifi_noverify:
         a.wifi = True
+    if a.voodoo_hda and a.sn6140_audio:
+        ap.error("--voodoo-hda 和 --sn6140-audio 互斥（两者会抢同一个 HDA 控制器）")
+    if a.sn6140_audio and not os.path.isdir(SN6140_ROOT):
+        sys.exit(f"缺 SN6140 定制版 AppleALC: {SN6140_ROOT}\n"
+                 f"先跑 tools/baremetal/fetch-sn6140-applealc.sh")
 
     if not os.path.isdir(os.path.join(SRC, "OC")):
         sys.exit(f"缺参考 EFI 树: {SRC}")
@@ -113,7 +127,8 @@ def main():
 
     fs = PyFatFS(img)
     fs.makedirs("/EFI")
-    copy_tree(fs, SRC, "/EFI", top=True)
+    copy_tree(fs, SRC, "/EFI", top=True,
+              skip={"OC/Kexts/AppleALC.kext"} if a.sn6140_audio else ())
 
     if not a.no_ps2:
         if not os.path.isdir(PS2_ROOT):
@@ -225,6 +240,21 @@ def main():
             if k["BundlePath"] == "VoodooPS2Controller.kext/Contents/PlugIns/VoodooInput.kext":
                 k["Enabled"] = False
 
+    # --- 可选：SN6140 定制版 AppleALC（替换参考树里的官方 AppleALC）---
+    if a.sn6140_audio:
+        fs.makedirs("/EFI/OC/Kexts/AppleALC.kext")
+        copy_tree(fs, SN6140_ROOT, "/EFI/OC/Kexts/AppleALC.kext")
+        for k in pl["Kernel"]["Add"]:
+            if k["BundlePath"] == "AppleALC.kext":
+                k["Enabled"] = True
+            if k["BundlePath"] == "VoodooHDA.kext":
+                k["Enabled"] = False
+        # 官方 layout-id 属性在本机被写成了 integer（AppleALC 不读）；改成 data 15，
+        # 这样即使 alcid= 丢了也能落到 layout 15。
+        dp = pl.setdefault("DeviceProperties", {}).setdefault("Add", {})
+        audio = dp.setdefault("PciRoot(0x0)/Pci(0x8,0x1)/Pci(0x0,0x6)", {})
+        audio["layout-id"] = (15).to_bytes(4, "little")
+
     if a.no_ec_ssdt:
         for x in pl["ACPI"]["Add"]:
             if x["Path"] in ("SSDT-EC.aml", "SSDT-RTCAWAC.aml"):
@@ -233,6 +263,10 @@ def main():
     nv = pl["NVRAM"]["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]
     if a.acpibl and "nvrmacpibl=1" not in nv["boot-args"]:
         nv["boot-args"] += " nvrmacpibl=1"
+    if a.sn6140_audio:
+        toks = [t for t in nv["boot-args"].split() if not t.startswith(("alcid=", "alcdelay="))]
+        toks += ["alcid=15", "alcdelay=1000"]
+        nv["boot-args"] = " ".join(toks)
     if a.voodoo_i2c and "-vi2c-force-polling" not in nv["boot-args"]:
         nv["boot-args"] += " -vi2c-force-polling"
     if a.wifi_noverify and "-yyavicnoverify" not in nv["boot-args"]:

@@ -13,6 +13,8 @@
 | `verify-transplant.sh` | samples APFS blocks in `p5` and compares their md5 against the same blocks in `macreal.qcow2` |
 | `oc-esp.sh` | `debug-on` raises the OpenCore log level (`Target=0x47`, `DisplayLevel=0x80000042`); `log` prints and backs up the log files; `mount` mounts the ESP |
 | `mac-flash.sh` | **runs on macOS**: finds the ESP containing `EFI/OC/config.plist`, `dd`s a new image into it, verifies the first block |
+| `fetch-sn6140-applealc.sh` | downloads and verifies the community SN6140 AppleALC (`SN6140-Test-v1`, `DBG-199-2026-10-26`) into `kexts/applealc-sn6140/`; nothing third-party is committed |
+| `apply-sn6140-audio.py` | patches an **already mounted** ESP in place: backs up `config.plist` + `AppleALC.kext`, swaps the kext, adds `alcid=15 alcdelay=1000`, writes `layout-id` as data 15. `--dry-run`, `--check`, `--no-layout-property` |
 | `mac-collect.sh` | **runs on macOS**: dumps displays/audio/power/USB/ioreg/loaded kexts, `pmset -g log`, the recent shutdown log and OpenCore logs into `handoff-out/` on the ESP |
 
 ## `vm/` — the retired QEMU route

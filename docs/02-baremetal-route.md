@@ -107,6 +107,7 @@ What it changes relative to the reference config:
 | `--acpibl` | adds `nvrmacpibl=1` — **this is what makes brightness work** |
 | `--shutdown-tool` | adds `ResetSystem.efi` as a menu item named "关机 Shutdown" (`Arguments = shutdown`) |
 | `--voodoo-hda` | replaces AppleALC with VoodooHDA (did **not** produce audio on this machine — see troubleshooting) |
+| `--sn6140-audio` | replaces AppleALC with the community SN6140 build from `kexts/applealc-sn6140/`, adds `alcid=15 alcdelay=1000`; run `tools/baremetal/fetch-sn6140-applealc.sh` first |
 | `--no-ec-ssdt` | disables the reference `SSDT-EC` (hangs boot on this machine — do not use) |
 
 The PS/2 keyboard kexts (`VoodooPS2Controller` + plugins) are always added, in the correct order

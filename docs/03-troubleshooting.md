@@ -113,6 +113,10 @@ pin; polling is enough. The `VoodooPS2Controller` copy of `VoodooInput.kext` is 
 
 ## 5. Internal audio: no devices at all
 
+> **Status 2026-11-07: fixed** with the community layout-15 AppleALC — speakers, wired-headphone output,
+> mic input and headphone hot-plug work. The root cause below still explains why the *upstream* kext
+> cannot work; the solution is at the end of this section.
+
 **Symptom.** `系统设置 → 声音` is empty; `system_profiler SPAudioDataType` lists nothing. In ioreg the
 HDA controller exists, `AppleHDACodecGeneric` binds, but `AppleHDADriver` is `!registered, !matched`.
 
@@ -145,8 +149,38 @@ IOMatchCategory   = "VoodooHDA"    <!-- coexist with the system AppleHDAControll
 (the stock kext only matches `IONameMatch = HDAS`, and our device is `HDEF`/`IOName pci1022,15e3`, so
 unmodified it never attaches). Result: still no audio devices.
 
-**Recommendation.** A **USB sound card** (any CDC/UAC dongle) is the pragmatic answer — the same way a USB
-Bluetooth dongle solves the next item.
+**2026-11-07 — community layout-15 build (installed and verified).**
+[chenhggu6475/Senary-SN6140-AppleALC-Hackintosh](https://github.com/chenhggu6475/Senary-SN6140-AppleALC-Hackintosh)
+adds `14F1:1F87` to AppleALC and ships a layout 15 derived from MacPeet's CX8070 profile. The live ESP was
+patched in place:
+
+- `SN6140-Test-v1` DEBUG build, `CFBundleVersion` 1.9.9, runtime tag `DBG-199-2026-10-26`, x86_64,
+  executable SHA256 `050a86…53b6` (checked by `tools/baremetal/fetch-sn6140-applealc.sh`)
+- boot-args `alcid=15 alcdelay=1000`; inside AppleALC `alcid=` has the highest priority and overrides
+  every `layout-id` property
+- the HDA controller's `layout-id` changed from `<integer>12</integer>` — **not an `OSData`, so AppleALC
+  never read it** — to `<data>0f000000</data>`
+
+Node compatibility checked against this unit's `/proc/asound/card2/codec#0` (subsystem `1d053010`; the
+author tested subsystem `1D05:1407`): `Platforms15.xml` only uses nodes 0x10/0x11 (outputs),
+0x13/0x14 (inputs), 0x16 (HP), 0x17 (speaker), 0x19/0x1a (mics), all of which exist here.
+
+**Result: internal speakers, wired-headphone output and mic input all work; Bilibili playback is A/V in
+sync and headphone hot-plug switches the output correctly (2026-11-07).** Not yet recorded: sleep/wake,
+returning from Windows, cold-boot repeatability.
+
+After booting macOS:
+
+```sh
+ioreg -r -n AppleALC -l -w0 | grep VersionInfo   # DBG-199-2026-10-26 == the custom build is loaded
+system_profiler SPAudioDataType                  # Built-in Speaker / Headphones / Microphone
+```
+
+Turn the volume down first; mute on squealing. Roll back with the backup in
+`EFI/OC/backups/sn6140-audio-<timestamp>/` (`restore.sh`), or flash a known-good ESP image.
+
+**Recommendation if it fails.** A **USB sound card** (any CDC/UAC dongle) remains the pragmatic answer —
+the same way a USB Bluetooth dongle solves the next item.
 
 ---
 
@@ -366,7 +400,7 @@ If `Misc>Debug>Target` has the file bit (`0x40`) but `DisplayLevel` is only `ERR
 | `npci=0x2000`, cores = 8, `-v debug=0x100` combinations | no improvement; the reference config uses none of them |
 | `AppleDebug = True` + `debug=0x100` | hides the kernel's own verbose output; log stops at `EXITBS` and looks like a hang |
 | Removing `SSDT-EC` to expose the real EC | boot hangs (AppleACPIEC on this EC) |
-| AppleALC with various `layout-id`s | codec `0x14f11f87` is not in AppleALC at all |
+| AppleALC (official build) with various `layout-id`s | codec `0x14f11f87` is not in AppleALC at all |
 | VoodooHDA 3.6.8 with retargeted match | loads, still no audio devices |
 | Internal MT7922 Bluetooth | no macOS transport exists |
 | HiDPI custom framebuffers (BetterDisplay / one-key-hidpi) | driver rejects the mode |

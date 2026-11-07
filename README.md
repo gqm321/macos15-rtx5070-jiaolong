@@ -6,9 +6,10 @@ GPU passthrough, then **migrated to a bare-metal partition** driven by a self-bu
 bare-metal install was later updated in place to **15.8.2 (24H232)**.
 
 > **TL;DR** — bare metal is usable: desktop, Metal 3, brightness keys/slider, internal keyboard,
-> Wi-Fi and the I2C touchpad all work. Internal audio (Conexant SN6140) and internal Bluetooth
-> (MT7922) are unsupported. macOS 15.8.2 fixed the S5 shutdown reset; the OpenCore "Shutdown"
-> item is kept as a fallback.
+> Wi-Fi, the I2C touchpad and **internal audio** all work. Audio needs the community SN6140
+> AppleALC (layout 15) — upstream AppleALC has no entry for this codec. Internal Bluetooth (MT7922) is
+> unsupported. macOS 15.8.2 fixed the S5 shutdown reset; the OpenCore "Shutdown" item is kept as a
+> fallback.
 
 ---
 
@@ -22,7 +23,7 @@ bare-metal install was later updated in place to **15.8.2 (24H232)**.
 | Panel | NE160QDM-NZL, 2560×1600 **300 Hz** | macOS runs 2048×1280 @ 300 Hz scaled mode |
 | Wi-Fi | MediaTek MT7922 (`14C3:7922`) | works; its Bluetooth half is USB `0489:E0D8` and does **not** work |
 | Ethernet | Realtek RTL8125 | no macOS driver available |
-| Audio | **Conexant SN6140** (`14F1:1F87`, subsystem `1D05:3010`) | not in AppleALC's codec table |
+| Audio | **Conexant SN6140** (`14F1:1F87`, subsystem `1D05:3010`) | works with the community layout 15 AppleALC build; upstream AppleALC has no entry |
 | Input | internal keyboard is **PS/2 (i8042)**; touchpad is I2C HID (`093A:0255`) | keyboard needs VoodooPS2; touchpad needs VoodooI2C |
 | Storage | ZHITAI TiPlus7100 1 TB (Linux + macOS); YMTC PC41Q (Windows) | ⚠️ NVMe numbering **swaps between boots** — always use `/dev/disk/by-id/` |
 
@@ -67,11 +68,43 @@ with a self-built OpenCore. See [`docs/02-baremetal-route.md`](docs/02-baremetal
 | Wi-Fi | ✅ | YYavicWiFi 0.7.2 + `-yyavicnoverify` on 15.8.2; captive-portal login works |
 | External mouse / USB | ✅ | |
 | Touchpad | ✅ | `093A:0255` I2C HID; VoodooI2C 2.9.1 + VoodooI2CHID + `-vi2c-force-polling` |
-| Internal audio | ❌ | Conexant SN6140 is not in AppleALC; use a USB sound card |
+| Internal audio | ✅ | community SN6140 AppleALC (layout 15) + `alcid=15`; speakers, wired-headphone output, mic input and headphone hot-plug verified 2026-11-07, Bilibili playback in sync. Sleep/wake and cold-boot stability not yet recorded |
 | Internal Bluetooth | ❌ | no MT7922 BT transport in macOS; a USB BT dongle works (A2DP verified) |
 | Battery | ❌ | the real EC is shadowed by a fake one; enabling it hangs boot |
 | Shut down | ✅ | fixed by macOS 15.8.2; the OpenCore "Shutdown" item is kept as a fallback |
 | Resolution / HiDPI | 🟡 | 1280×800 is the only crisp mode; the driver rejects custom HiDPI framebuffers |
+
+### Internal audio (SN6140, community AppleALC)
+
+The codec is not in upstream AppleALC's table, so no `layout-id` works with the official kext. On
+2026-11-07 the build from
+[chenhggu6475/Senary-SN6140-AppleALC-Hackintosh](https://github.com/chenhggu6475/Senary-SN6140-AppleALC-Hackintosh)
+(`SN6140-Test-v1`, runtime tag `DBG-199-2026-10-26`, x86_64) was installed into the live ESP:
+
+- `EFI/OC/Kexts/AppleALC.kext` replaced; the previous kext and `config.plist` are in
+  `EFI/OC/backups/sn6140-audio-<timestamp>/`
+- boot-args gained `alcid=15 alcdelay=1000` (`alcid=` has the highest priority inside AppleALC, it
+  overrides any `layout-id` property)
+- the HDA device's `layout-id` is now **data** 15; the old `<integer>12</integer>` was never read by
+  AppleALC, which expects an `OSData`
+
+**Result on this unit (2026-11-07): internal speakers, wired-headphone output and mic input all work;
+Bilibili playback is audio/video in sync, and inserting/removing the headphone switches the output
+correctly.** That also matches the topology check done from Linux: the codec is `14f11f87` rev `0x100100`
+subsystem `1d053010`, and every node referenced by `Platforms15.xml` — 0x10/0x11 outputs, 0x13/0x14
+inputs, 0x17 speaker, 0x19/0x1a mic, 0x16 headphone — exists on it. Still unrecorded: sleep/wake,
+switching back from Windows, and cold-boot repeatability.
+
+After booting macOS:
+
+```sh
+ioreg -r -n AppleALC -l -w0 | grep VersionInfo   # DBG-199-2026-10-26 == the custom build is loaded
+system_profiler SPAudioDataType                  # Built-in Speaker / Headphones / Microphone
+```
+
+Turn the volume down before the first playback test and mute immediately on squealing. Restore with
+`sh EFI/OC/backups/sn6140-audio-<timestamp>/restore.sh /Volumes/EFI`, or flash a known-good image.
+Rebuilding the ESP has a matching flag: `build-efi-ref.py --sn6140-audio`.
 
 ---
 
