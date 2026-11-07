@@ -31,13 +31,14 @@ Regenerate your own with [GenSMBIOS](https://github.com/corpnewt/GenSMBIOS) or O
 | boot-args | `-v debug=0x100 keepsyms=1 nvfb=1 nvaccel=1 nvfbheads=4 -nvkmsnosmooth amfi_get_out_of_my_way=0x1 amfi=0x80 ipc_control_port_options=0 gfxrst=4` | VM-flavoured set + `npci=0x2000` | `nvfb*`/`gfxrst=4` are NullMoth-specific |
 | Kexts | Lilu, AMFIPass, AppleALC, AppleMCEReporterDisabler, NVMeFix, RealtekRTL8111, USBToolBox, UTBDefault, VirtualSMC, ForgedInvariant (RestrictEvents and WhateverGreen present but disabled) | Lilu, VirtualSMC, AMFIPass, USBPorts, VMHide | `ForgedInvariant` and `USBToolBox` matter on AMD |
 
-`--cores`, `--wifi`, `--wifi-noverify`, `--voodoo-i2c`, `--acpibl`, `--shutdown-tool` in
-`build-efi-ref.py` are the deltas we apply on top of it today. `--wifi-noverify` adds
-`-yyavicnoverify` (YYavicWiFi 0.7.2 only accepts 24H32; 15.8.2 is 24H232) and `--voodoo-i2c` adds
-VoodooI2C 2.9.1 + VoodooI2CHID + `-vi2c-force-polling` for the I2C touchpad. `RestrictEvents` is
-enabled with `revpatch=sbvmm,cpuname` to make the 15.8.2 update appear in System Settings; the
-`cpuname` part is cosmetic (the reference EFI came from an 8945HX machine, corrected to 7845HX).
-Everything else is left exactly as the reference had it — that is deliberate.
+`--cores`, `--wifi`, `--wifi-noverify`, `--voodoo-i2c`, `--restrictevents`, `--acpibl`,
+`--shutdown-tool` in `build-efi-ref.py` are the deltas we apply on top of it today.
+`--wifi-noverify` adds `-yyavicnoverify` (YYavicWiFi 0.7.2 only accepts 24H32; 15.8.2 is 24H232) and
+`--voodoo-i2c` adds VoodooI2C 2.9.1 + VoodooI2CHID + `-vi2c-force-polling` for the I2C touchpad.
+`--restrictevents` enables `RestrictEvents` with `revpatch=sbvmm,cpuname` to make the 15.8.2 update
+appear in System Settings; the `cpuname` part is cosmetic (the reference EFI came from an 8945HX
+machine, corrected to 7845HX). Everything else is left exactly as the reference had it — that is
+deliberate.
 
 ---
 
