@@ -28,19 +28,27 @@ and never continued. Other variants reset with no output at all.
 2. *Stall at `pci (build …)`* — the config was missing what the reference EFI has: the iGPU not disabled,
    `IONDRVSupport` not blocked, an older 36-patch set, MacBookPro16,2 SMBIOS, no ACPI SSDTs.
 
-**Fix.** Adopt the reference config (`docs/04-reference-notes.md`) and change only the core count. Also
-remove the BAR quirks entirely — the reference config has none, and 8 GiB BAR1 is fine for macOS.
+**Fix.** Adopt the reference config (`docs/04-reference-notes.md`) and change only the core count.
+Keep its BAR settings as they are: `Booter>ResizeAppleGpuBars = 0` (enabled) and
+`UEFI>ResizeGpuBars = -1` (disabled). The `0` is not "off": it tells OpenCore to reduce GPU BARs to
+the smallest size the device supports. On this GPU that is a 64 MiB BAR1; the NVIDIA driver then
+re-expands it to 8 GiB at runtime. Do not set it to `-1` and do not delete the key.
 
 ### BAR quirk semantics (worth memorising)
 
 | Key | Section | When it runs | Value encoding |
 |---|---|---|---|
-| `ResizeAppleGpuBars` | `Booter>Quirks` | **after** boot.efi | PCI Resizable BAR spec; OpenCore docs state the only supported value is `0` (smallest the device supports); `-1` disables |
-| `ResizeGpuBars` | `UEFI>Quirks` | **before** boot.efi | `n` = 2^n MB (`8` = 256 MB, `12` = 4 GiB) |
+| `ResizeAppleGpuBars` | `Booter>Quirks` | **after** boot.efi | `0` = **enabled** (reduce to the smallest BAR the device supports; 64 MiB BAR1 here), `-1` = **disabled**; other values are a PCI spec code (`12` = 4 KiB) and unsafe |
+| `ResizeGpuBars` | `UEFI>Quirks` | **before** boot.efi | `n` = 2^n MB (`8` = 256 MB, `12` = 4 GiB); `-1` = disabled (the reference config leaves it at `-1`) |
 
 `ResizeAppleGpuBars = 12` therefore means **4 KiB**, not 4 GiB — it destroys the boot ("prohibited sign"
 or an instant reset with no text). `ResizeGpuBars` placed in `Booter>Quirks` produces
 `OCS: No schema for ResizeGpuBars at NN index, context <Quirks>!` in the log and is ignored.
+
+"So the firmware hands macOS an 8 GiB BAR1" is the wrong reading of the working system. macOS never
+receives 8 GiB from firmware/OpenCore: `ARBAR 0` in the OpenCore log means `ResizeAppleGpuBars = 0`,
+which reduces BAR1 to 64 MiB; `placeLargeBar1()` grows it back to 8 GiB. The working macOS 15 install
+proves that the driver's expansion works there, not that the hand-off is 8 GiB.
 
 ---
 
@@ -395,8 +403,8 @@ If `Misc>Debug>Target` has the file bit (`0x40`) but `DisplayLevel` is only `ERR
 | Attempt | Result |
 |---|---|
 | `ResizeAppleGpuBars = 12` (thinking "4 GiB") | prohibited sign / instant reset — the value is a PCI spec code, `12` = 4 KiB |
-| `ResizeAppleGpuBars = 0` | still instantly reset; the quirk is not needed on this machine at all |
-| `UEFI>ResizeGpuBars = 8` (256 MB) | instant reset; the firmware's own 8 GiB BAR works fine with macOS |
+| `ResizeAppleGpuBars = 0` tried with the old config | reset in that test, but the old config was missing the reference EFI's other pieces; it is **not** evidence against the quirk. The reference config uses `0` and boots |
+| `UEFI>ResizeGpuBars = 8` (256 MB) | instant reset in that test; the reference config leaves `ResizeGpuBars = -1` and lets `ResizeAppleGpuBars = 0` do the reducing |
 | `npci=0x2000`, cores = 8, `-v debug=0x100` combinations | no improvement; the reference config uses none of them |
 | `AppleDebug = True` + `debug=0x100` | hides the kernel's own verbose output; log stops at `EXITBS` and looks like a hang |
 | Removing `SSDT-EC` to expose the real EC | boot hangs (AppleACPIEC on this EC) |

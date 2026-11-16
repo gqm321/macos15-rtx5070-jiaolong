@@ -66,9 +66,12 @@ a frozen machine.
 
 **Booter quirks** (non-default): `AllowRelocationBlock`, `AvoidRuntimeDefrag`, `DevirtualiseMmio`,
 `DisableVariableWrite`, `EnableSafeModeSlide`, `FixupAppleEfiImages`, `ProvideCustomSlide`,
-`RebuildAppleMemoryMap`, `SetupVirtualMap`, `SyncRuntimePermissions`. No BAR quirk.
+`RebuildAppleMemoryMap`, `SetupVirtualMap`, `SyncRuntimePermissions`, and `ResizeAppleGpuBars = 0`
+(enabled: reduces GPU BARs to the device minimum — 64 MiB BAR1 here; the NVIDIA driver re-expands it
+to 8 GiB). No other BAR quirk.
 
-**UEFI quirks**: `EnableVectorAcceleration`, `ReleaseUsbOwnership`, `RequestBootVarRouting`, `UnblockFsConnect`.
+**UEFI quirks**: `EnableVectorAcceleration`, `ReleaseUsbOwnership`, `RequestBootVarRouting`, `UnblockFsConnect`;
+`ResizeGpuBars = -1` (disabled).
 
 **Kernel quirks**: `CustomSMBIOSGuid`, `DisableLinkeditJettison`, `DisableRtcChecksum`, `LapicKernelPanic`,
 `PanicNoKextDump`, `PowerTimeoutKernelPanic`, `ProvideCurrentCpuInfo`; `Emulate>DummyPowerManagement = True`.

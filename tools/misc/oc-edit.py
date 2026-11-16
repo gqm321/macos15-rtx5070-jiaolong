@@ -62,9 +62,9 @@ def main():
                     help="Misc>Security>ScanPolicy (0 = scan every filesystem/device)")
     ap.add_argument("--timeout", type=int, help="Misc>Boot>Timeout (picker seconds)")
     ap.add_argument("--resize-gpu-bars", type=int,
-                    help="Booter>Quirks>ResizeGpuBars (MB; -1 disables)")
+                    help="UEFI>Quirks>ResizeGpuBars (n = 2^n MB; -1 disables)")
     ap.add_argument("--resize-apple-gpu-bars", type=int,
-                    help="Booter>Quirks>ResizeAppleGpuBars (MB; -1 disables)")
+                    help="Booter>Quirks>ResizeAppleGpuBars (0 = reduce to device minimum; -1 disables)")
     ap.add_argument("--show-picker", type=int, choices=(0, 1),
                     help="Misc>Boot>ShowPicker (0 = boot the default entry directly)")
     ap.add_argument("--patch-json", help="JSON list of {Comment,Find,Replace,MinKernel} to append to Kernel>Patch")
@@ -119,7 +119,7 @@ def main():
             plist["Misc"]["Boot"]["Timeout"] = args.timeout
 
         if args.resize_gpu_bars is not None:
-            plist["Booter"]["Quirks"]["ResizeGpuBars"] = args.resize_gpu_bars
+            plist["UEFI"]["Quirks"]["ResizeGpuBars"] = args.resize_gpu_bars
 
         if args.resize_apple_gpu_bars is not None:
             plist["Booter"]["Quirks"]["ResizeAppleGpuBars"] = args.resize_apple_gpu_bars

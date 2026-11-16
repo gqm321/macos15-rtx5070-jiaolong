@@ -59,9 +59,9 @@ def main():
     ap.add_argument("--cores", type=int, default=8, help="cpuid_cores_per_package 补丁值")
     ap.add_argument("--no-wifi", action="store_true", help="不装 YYavicWiFi（排查用）")
     ap.add_argument("--bars", type=int, default=-1,
-                    help="Booter ResizeAppleGpuBars：-1=关闭（默认）；0=硬件最小。这个 quirk 在 boot.efi 之后才动手，容易把帧缓冲搞死")
+                    help="Booter ResizeAppleGpuBars：-1=禁用；0=启用（缩到设备最小 BAR，参考配置用的就是这个）。在 boot.efi 之后生效")
     ap.add_argument("--gpu-bars", type=int, default=8,
-                    help="UEFI ResizeGpuBars：n 表示 2^n MB（8=256MB, 12=4GB, -1=不动）。在 boot.efi 之前生效")
+                    help="UEFI ResizeGpuBars：n 表示 2^n MB（8=256MB, 12=4GiB, -1=不动）。在 boot.efi 之前生效")
     a = ap.parse_args()
     global KEXTS
     if a.no_wifi:
@@ -133,11 +133,15 @@ def main():
     pl["Misc"]["Boot"]["HideAuxiliary"] = False
     pl["Misc"]["Security"]["ScanPolicy"] = 0
     # 显卡 BAR 的两条路，务必分清：
-    #   UEFI>Quirks>ResizeGpuBars  —— n 表示 2^n MB（8=256MB, 12=4GB）。在 boot.efi 之前生效，首选。
-    #   Booter>Quirks>ResizeAppleGpuBars —— 只在 macOS 引导条目里动手（boot.efi 之后），
-    #       文档说 macOS 下「唯一支持的值就是硬件最小 BAR，即 0」，其它值会翻车。
-    # 真机 BIOS 开了 Re-Size BAR，显存 BAR 是 8 GiB（lspci: Region 1 size=8G），
-    # macOS 只认常规的 256 MB，所以这里在 UEFI 层缩下去。
+    #   UEFI>Quirks>ResizeGpuBars  —— n 表示 2^n MB（8=256MB, 12=4GiB）。在 boot.efi 之前生效。
+    #       这是本旧脚本的默认路线；现行参考配置不用它（保持 -1）。
+    #   Booter>Quirks>ResizeAppleGpuBars —— 只在 macOS 引导条目里动手（boot.efi 之后）。
+    #       0=启用（缩到设备最小 BAR，参考配置用的就是这个；本卡 BAR1=64MB），-1=禁用；
+    #       其它值（例如 12=4KiB）会翻车。
+    # 真机 BIOS 开了 Re-Size BAR，显存 BAR 是 8 GiB（lspci: Region 1 size=8G）。
+    # 现行参考配置不是靠 UEFI 层缩 BAR，而是 Booter>ResizeAppleGpuBars=0（启用：
+    # 缩到设备支持的最小 BAR，本卡 BAR1 = 64 MiB），驱动随后自己扩到 8 GiB。
+    # 这个老脚本默认仍是 UEFI ResizeGpuBars=8（256 MB），只作历史用途。
     pl["Booter"]["Quirks"]["ResizeAppleGpuBars"] = a.bars
     pl["Booter"]["Quirks"].pop("ResizeGpuBars", None)      # 这个键属于 UEFI 段，放 Booter 会被 OC 报 no schema
     pl["UEFI"]["Quirks"]["ResizeGpuBars"] = a.gpu_bars

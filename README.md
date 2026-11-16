@@ -62,7 +62,7 @@ with a self-built OpenCore. See [`docs/02-baremetal-route.md`](docs/02-baremetal
 | Item | State | Notes |
 |---|---|---|
 | Desktop / WindowServer | ✅ | MacPro7,1, Metal 3 |
-| GPU | ✅ | NVRM / NVRMFB / NVAccel / NVRMAGDC all loaded, 8 GiB BAR is fine |
+| GPU | ✅ | NVRM / NVRMFB / NVAccel / NVRMAGDC all loaded; OpenCore shrinks BAR1 to 64 MiB at boot (`ResizeAppleGpuBars = 0`), the driver re-expands it to 8 GiB |
 | Brightness (keys + slider) | ✅ | needs `nvrmacpibl=1` boot-arg — see troubleshooting #6 |
 | Internal keyboard | ✅ | VoodooPS2Controller + plugins |
 | Wi-Fi | ✅ | YYavicWiFi 0.7.2 + `-yyavicnoverify` on 15.8.2; captive-portal login works |
@@ -158,9 +158,11 @@ obtain them.
    `disable-gpu` for the iGPU, `Kernel>Block` of `IONDRVSupport`, five SSDTs, 27 kernel patches and
    MacPro7,1. We changed one value (core count) and reached the desktop.
 3. **Know which layer you are resizing BARs in.** `Booter>ResizeAppleGpuBars` runs *after* boot.efi
-   and, per OpenCore's documentation, only supports `0`; `UEFI>ResizeGpuBars` runs *before* boot.efi
-   and takes `n` = 2^n MB. Writing `12` into the former means **4 KiB**, not 4 GiB — it kills the boot.
-   We made exactly that mistake.
+   and is an enable/limit quirk: `0` enables it (reduce GPU BARs to the smallest the device supports),
+   `-1` disables it. The reference config uses `0`, so OpenCore hands macOS a 64 MiB BAR1 here; the
+   NVIDIA driver later calls `placeLargeBar1()` and re-expands it to 8 GiB. `UEFI>ResizeGpuBars` runs
+   *before* boot.efi and takes `n` = 2^n MB. Writing `12` into `ResizeAppleGpuBars` means **4 KiB**,
+   not 4 GiB — it kills the boot. We made exactly that mistake and then misread `0` as "off".
 4. **A point update can silently disable a kext that pins the OS build.** YYavicWiFi 0.7.2 checks
    `Darwin == 24.6` and `OS Build Version == 24H32`; 15.8.2 is `24H232`, so the kext disabled its
    native Wi-Fi layer instead of panicking. `-yyavicnoverify` is upstream's tester switch; the real

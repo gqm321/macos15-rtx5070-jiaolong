@@ -27,7 +27,7 @@ Regenerate your own with [GenSMBIOS](https://github.com/corpnewt/GenSMBIOS) or O
 | Kernel patches | 27 patches, incl. `CaseySJ | IOPCIIsHotplugPort | Fix PCI bus enumeration on AM5`, `Fix PAT 15.0+`, `probeBusGated 10-bit tags`, `thread_* non-monotonic time` | 36 older patches | the newer set matches macOS 15.x |
 | Booter quirks | `DevirtualiseMmio`, `AllowRelocationBlock`, `FixupAppleEfiImages`, `RebuildAppleMemoryMap`, `SyncRuntimePermissions`, `SetupVirtualMap`, `ProvideCustomSlide`, `AvoidRuntimeDefrag` | subset, no `DevirtualiseMmio` | the memory-map quirks are what AMD boards need |
 | UEFI quirks | `EnableVectorAcceleration`, `ReleaseUsbOwnership`, `RequestBootVarRouting`, `UnblockFsConnect` | subset | |
-| BAR quirks | **none** | we had tried `ResizeAppleGpuBars`/`ResizeGpuBars` | proving 8 GiB BAR1 is fine for macOS |
+| BAR quirks | `Booter>ResizeAppleGpuBars = 0` (enabled: reduce to the device minimum), `UEFI>ResizeGpuBars = -1` (disabled) | we had tried `12` and misread `0` as "off" | OpenCore hands macOS a 64 MiB BAR1; the driver re-expands it to 8 GiB. "8 GiB BAR1 is fine" describes the driver's runtime aperture, not the firmware/OC hand-off |
 | boot-args | `-v debug=0x100 keepsyms=1 nvfb=1 nvaccel=1 nvfbheads=4 -nvkmsnosmooth amfi_get_out_of_my_way=0x1 amfi=0x80 ipc_control_port_options=0 gfxrst=4` | VM-flavoured set + `npci=0x2000` | `nvfb*`/`gfxrst=4` are NullMoth-specific |
 | Kexts | Lilu, AMFIPass, AppleALC, AppleMCEReporterDisabler, NVMeFix, RealtekRTL8111, USBToolBox, UTBDefault, VirtualSMC, ForgedInvariant (RestrictEvents and WhateverGreen present but disabled) | Lilu, VirtualSMC, AMFIPass, USBPorts, VMHide | `ForgedInvariant` and `USBToolBox` matter on AMD |
 

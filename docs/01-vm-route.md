@@ -36,8 +36,9 @@ a,b=[int(x,16) for x in l[1].split()[:2]]; print('%.2f GiB'%((b-a+1)/2**30))"
 
 `tools/vm/bar1-boot.sh` does the same at boot time and is what the systemd unit calls.
 
-> Note: on bare metal, 8 GiB is **not** a problem for macOS itself (see the bare-metal doc). The 8 GiB
-> limit here is a QEMU/OVMF limitation, not a macOS one.
+> Note: on bare metal the firmware also gives Linux an 8 GiB BAR1, but OpenCore runs
+> `Booter>ResizeAppleGpuBars = 0` and hands macOS a 64 MiB BAR1; the NVIDIA driver then re-expands it
+> to 8 GiB. The 8 GiB limit here is a QEMU/OVMF limitation, not a macOS one.
 
 ---
 
