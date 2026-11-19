@@ -115,6 +115,7 @@ docs/01-vm-route.md         VM + autostart (GRUB entry + systemd), history and t
 docs/02-baremetal-route.md  bare-metal transplant: partitions, APFS copy, ESP build, first boot
 docs/03-troubleshooting.md  ★ every symptom → root cause → fix, including dead ends
 docs/04-reference-notes.md  where the reference EFI came from, upstream NullMoth issues, caveats
+docs/05-hidpi.md            HiDPI "looks like" sizes on the 2560x1600 panel (nvfbhidpi + display override)
 configs/                    sanitized OpenCore config, ESP build recipes, SSDTs
 tools/baremetal/            ESP builder, installer, OpenCore log reader, macOS-side helpers
 tools/vm/                   vfio / BAR1 / launcher / GRUB+systemd install / cleanup
