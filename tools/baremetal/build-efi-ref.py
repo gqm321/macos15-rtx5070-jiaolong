@@ -9,7 +9,7 @@
 相对参考配置只做「必须按本机硬件改」的调整：
   - cpuid_cores_per_package: 16（8945HX 是 16 核）-> 12（7845HX 是 12 核）
   - 可选 --wifi：加 YYavicWiFi.kext（MT7922），默认不加
-  - 可选 --wifi-noverify：再加 -yyavicnoverify（15.8.2 需要；0.7.2 只认 24H32）
+  - 可选 --wifi-noverify：再加 -yyavicnoverify（15.8.2/15.8.3 需要；0.7.x 只认 24H32）
   - 可选 --voodoo-i2c：加 VoodooI2C/VoodooI2CHID 和 -vi2c-force-polling（I2C 触控板）
   - 可选 --sn6140-audio：换成社区 SN6140 定制版 AppleALC（layout 15）+ alcid=15
 其余（SMBIOS MacPro7,1 / ACPI SSDT / 27 条内核补丁 / IONDRVFramebuffer Block /
@@ -89,7 +89,7 @@ def main():
                     help="物理核心数，写进 algrey 的 cpuid_cores_per_package 补丁")
     ap.add_argument("--wifi", action="store_true", help="加 YYavicWiFi.kext（MT7922）")
     ap.add_argument("--wifi-noverify", action="store_true",
-                    help="给 YYavicWiFi 加 -yyavicnoverify（15.8.2 需要；0.7.2 只认 24H32）")
+                    help="给 YYavicWiFi 加 -yyavicnoverify（15.8.2/15.8.3 需要；0.7.x 只认 24H32）")
     ap.add_argument("--voodoo-i2c", action="store_true",
                     help="加 VoodooI2C + VoodooI2CHID（I2C 触控板）并加 -vi2c-force-polling")
     ap.add_argument("--restrictevents", action="store_true",

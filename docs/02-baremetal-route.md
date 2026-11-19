@@ -101,7 +101,7 @@ What it changes relative to the reference config:
 |---|---|
 | `--cores 12` | rewrites the four `algrey | Force cpuid_cores_per_package` patches from `16` to `12` (8945HX → 7845HX) |
 | `--wifi` | adds `YYavicWiFi.kext` (MT7922) and `yyavic-cc=CN` to boot-args |
-| `--wifi-noverify` | also adds `-yyavicnoverify`; required on 15.8.2 because 0.7.2 only accepts 24H32 |
+| `--wifi-noverify` | also adds `-yyavicnoverify`; required on 15.8.2 and 15.8.3 because YYavicWiFi 0.7.x only accepts 24H32 |
 | `--voodoo-i2c` | adds VoodooI2C 2.9.1 + VoodooI2CHID, disables the PS/2 `VoodooInput`, appends `-vi2c-force-polling` |
 | `--restrictevents` | enables `RestrictEvents.kext` with `revpatch=sbvmm,cpuname` and `revcpuname=AMD Ryzen 9 7845HX` (update visibility; CPU name is cosmetic) |
 | `--acpibl` | adds `nvrmacpibl=1` — **this is what makes brightness work** |

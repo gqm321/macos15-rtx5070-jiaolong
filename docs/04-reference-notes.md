@@ -33,7 +33,7 @@ Regenerate your own with [GenSMBIOS](https://github.com/corpnewt/GenSMBIOS) or O
 
 `--cores`, `--wifi`, `--wifi-noverify`, `--voodoo-i2c`, `--restrictevents`, `--acpibl`,
 `--shutdown-tool` in `build-efi-ref.py` are the deltas we apply on top of it today.
-`--wifi-noverify` adds `-yyavicnoverify` (YYavicWiFi 0.7.2 only accepts 24H32; 15.8.2 is 24H232) and
+`--wifi-noverify` adds `-yyavicnoverify` (YYavicWiFi 0.7.x only accepts 24H32; 15.8.2 is 24H232, 15.8.3 is 24H241) and
 `--voodoo-i2c` adds VoodooI2C 2.9.1 + VoodooI2CHID + `-vi2c-force-polling` for the I2C touchpad.
 `--restrictevents` enables `RestrictEvents` with `revpatch=sbvmm,cpuname` to make the 15.8.2 update
 appear in System Settings; the `cpuname` part is cosmetic (the reference EFI came from an 8945HX
@@ -90,7 +90,7 @@ Driver boot-args we enumerated from the source/binary (useful when you suspect t
 | ForgedInvariant | https://github.com/ChefKissInc/ForgedInvariant |
 | RealtekRTL8111 | https://github.com/Mieze/RTL8111_driver_for_OS_X |
 | AppleMCEReporterDisabler | https://github.com/acidanthera/bugtracker (attached in the AMD guides) |
-| YYavicWiFi (MT7922) | https://github.com/yusufcanyavic/YYavicWiFi (`0.7.2`; needs `-yyavicnoverify` on 15.8.2) |
+| YYavicWiFi (MT7922) | https://github.com/yusufcanyavic/YYavicWiFi (`0.7.3`, was 0.7.2; needs `-yyavicnoverify` on 15.8.2 / 15.8.3) |
 | NullMoth 1401 / NVIDIA driver | https://github.com/nullmoth/nvidia-macos-driver (releases) |
 
 Expected tree layout for `build-efi-ref.py`:

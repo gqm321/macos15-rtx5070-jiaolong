@@ -3,7 +3,7 @@
 A complete write-up of getting **macOS Sequoia 15.8.1** running on an AMD Ryzen 9 7845HX laptop
 with an NVIDIA RTX 5070 Laptop GPU in **MUX (discrete-only) mode** — first inside QEMU/KVM with
 GPU passthrough, then **migrated to a bare-metal partition** driven by a self-built OpenCore. The
-bare-metal install was later updated in place to **15.8.2 (24H232)**.
+bare-metal install was later updated in place to **15.8.2 (24H232)** and then **15.8.3 (24H241)**.
 
 > **TL;DR** — bare metal is usable: desktop, Metal 3, brightness keys/slider, internal keyboard,
 > Wi-Fi, the I2C touchpad and **internal audio** all work. Audio needs the community SN6140
@@ -27,10 +27,14 @@ bare-metal install was later updated in place to **15.8.2 (24H232)**.
 | Input | internal keyboard is **PS/2 (i8042)**; touchpad is I2C HID (`093A:0255`) | keyboard needs VoodooPS2; touchpad needs VoodooI2C |
 | Storage | ZHITAI TiPlus7100 1 TB (Linux + macOS); YMTC PC41Q (Windows) | ⚠️ NVMe numbering **swaps between boots** — always use `/dev/disk/by-id/` |
 
-Software: **macOS 15.8.2 (24H232; installed as 15.8.1 and updated in place)**, **NullMoth 1401 /
+Software: **macOS 15.8.3 (24H241; installed as 15.8.1, updated in place via 15.8.2)**, **NullMoth 1401 /
 NVIDIA driver 2.6.5** (the 1401 app updates the driver independently), OpenCore with a config
 derived from the community EFI described in [`docs/04-reference-notes.md`](docs/04-reference-notes.md),
 SMBIOS **MacPro7,1** (`UpdateSMBIOSMode = Custom`).
+
+> **15.8.3 note (2026-11-19).** The 15.8.2 → 15.8.3 update installed normally and every component listed
+> below behaved as on 15.8.2, with no EFI change. The OpenCore/kext set is unchanged except YYavicWiFi,
+> which went 0.7.2 → 0.7.3 (see troubleshooting #7).
 
 ---
 
@@ -65,7 +69,7 @@ with a self-built OpenCore. See [`docs/02-baremetal-route.md`](docs/02-baremetal
 | GPU | ✅ | NVRM / NVRMFB / NVAccel / NVRMAGDC all loaded; OpenCore shrinks BAR1 to 64 MiB at boot (`ResizeAppleGpuBars = 0`), the driver re-expands it to 8 GiB |
 | Brightness (keys + slider) | ✅ | needs `nvrmacpibl=1` boot-arg — see troubleshooting #6 |
 | Internal keyboard | ✅ | VoodooPS2Controller + plugins |
-| Wi-Fi | ✅ | YYavicWiFi 0.7.2 + `-yyavicnoverify` on 15.8.2; captive-portal login works |
+| Wi-Fi | ✅ | YYavicWiFi 0.7.3 + `-yyavicnoverify` on 15.8.2 / 15.8.3; captive-portal login works; usable ~30 s after the kernel starts (~51 s with 0.7.2) |
 | External mouse / USB | ✅ | |
 | Touchpad | ✅ | `093A:0255` I2C HID; VoodooI2C 2.9.1 + VoodooI2CHID + `-vi2c-force-polling` |
 | Internal audio | ✅ | community SN6140 AppleALC (layout 15) + `alcid=15`; speakers, wired-headphone output, mic input and headphone hot-plug verified 2026-11-07, Bilibili playback in sync. Sleep/wake and cold-boot stability not yet recorded |
@@ -164,10 +168,11 @@ obtain them.
    NVIDIA driver later calls `placeLargeBar1()` and re-expands it to 8 GiB. `UEFI>ResizeGpuBars` runs
    *before* boot.efi and takes `n` = 2^n MB. Writing `12` into `ResizeAppleGpuBars` means **4 KiB**,
    not 4 GiB — it kills the boot. We made exactly that mistake and then misread `0` as "off".
-4. **A point update can silently disable a kext that pins the OS build.** YYavicWiFi 0.7.2 checks
-   `Darwin == 24.6` and `OS Build Version == 24H32`; 15.8.2 is `24H232`, so the kext disabled its
-   native Wi-Fi layer instead of panicking. `-yyavicnoverify` is upstream's tester switch; the real
-   fix is a kext built for the new build.
+4. **A point update can silently disable a kext that pins the OS build.** YYavicWiFi 0.7.x checks
+   `Darwin == 24.6` and `OS Build Version == 24H32`; 15.8.2 is `24H232` and 15.8.3 is `24H241`, so the
+   kext disables its native Wi-Fi layer instead of panicking. `-yyavicnoverify` is upstream's tester
+   switch; the real fix is a kext built for the new build. The switch has worked unchanged on 15.8.2
+   and 15.8.3.
 
 ---
 

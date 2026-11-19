@@ -4,7 +4,7 @@ Everything below actually happened on this machine. Each entry lists the symptom
 turned out to be, and what fixed it (or why it cannot be fixed). The **dead ends** section at the end is
 deliberately blunt: those were tested and do not work here.
 
-Machine: MECHREVO JIAOLONG, Ryzen 9 7845HX, RTX 5070 Laptop (MUX), macOS 15.8.2 (24H232),
+Machine: MECHREVO JIAOLONG, Ryzen 9 7845HX, RTX 5070 Laptop (MUX), macOS 15.8.3 (24H241),
 NullMoth 1401 / driver 2.6.5, OpenCore with the reference config (MacPro7,1).
 
 ---
@@ -205,17 +205,17 @@ no MT7922 Bluetooth transport in macOS.
 
 ---
 
-## 7. Wi-Fi (works; needs `-yyavicnoverify` on 15.8.2)
+## 7. Wi-Fi (works; needs `-yyavicnoverify` on 15.8.2 and later)
 
-YYavicWiFi 0.7.2 drives the MT7922 (`14C3:7922`) natively. Requirements observed on 15.8.2:
+YYavicWiFi 0.7.3 drives the MT7922 (`14C3:7922`) natively. Requirements observed on 15.8.2 and 15.8.3:
 
-- macOS 15.8.2 (24H232) **plus `-yyavicnoverify` in boot-args**,
+- macOS 15.8.2 (24H232) or 15.8.3 (24H241) **plus `-yyavicnoverify` in boot-args**,
 - `yyavic-cc=CN` in boot-args,
 - `csr-active-config = 0x0A43` plus the AMFI bypass arguments (`amfi=0x80 amfi_get_out_of_my_way=0x1`).
 
-**Why the extra flag.** 0.7.2 has a hard build gate in `yy_autoarm_fire()`: Darwin must be 24.6 and
-the `OS Build Version` property must equal `24H32` (15.8.1). 15.8.2 reports `24H232`, so without the
-flag the kext logs
+**Why the extra flag.** 0.7.2 and 0.7.3 have a hard build gate in `yy_autoarm_fire()`: Darwin must be
+24.6 and the `OS Build Version` property must equal `24H32` (15.8.1). 15.8.2 reports `24H232` and
+15.8.3 reports `24H241`, so without the flag the kext logs
 
 ```
 YYavicWiFi: OS build 24H232 (needs 24H32, macOS 15.8.1)
@@ -225,8 +225,9 @@ YYavicWiFi: native Wi-Fi layer disabled, unsupported macOS: 24H232
 
 and leaves the radio attached but the macOS Wi-Fi interface absent. `-yyavicnoverify` skips the check.
 Upstream marks it testers-only because the native layer is built against the 24H32 IO80211/Skywalk
-layout; it works on 15.8.2, but a future build that changes those vtables can panic — remove the flag
-and wait for a kext built for that build if it does.
+layout; it works on 15.8.2 and 15.8.3, but a future build that changes those vtables can panic — remove
+the flag and wait for a kext built for that build if it does. (A guard, NVRAM `yyavic-arm-guard`, makes
+the next boot skip the native layer after a failed arming, so a bad build costs Wi-Fi, not the boot.)
 
 Captive-portal Wi-Fi (campus network) works. Joining from the shell:
 
@@ -238,6 +239,40 @@ networksetup -setairportnetwork en0 "SSID" "password"
 Harmless noise: the kext prints a heartbeat to the console (`YYavicMtkWlan: hb t=… poll_fires=0 delta=0`).
 The transient `OS build not published yet` line is part of the same gate; the fatal combination is
 `OS build … (needs 24H32 …)` followed by `NOT arming` / `native Wi-Fi layer disabled`.
+
+### Wi-Fi only appears ~1 minute after power-on (fixed by 0.7.3: ~30 s)
+
+**Symptom.** After every boot the Wi-Fi menu showed "unavailable" for about a minute before scanning and
+joining. With 0.7.2 the kernel log (`log show`, start/end the boot window; the kext's own `yy_trace`
+lines are not in the unified log) gave, relative to kernel start (19:37:41):
+
+| Time | Event |
+|---|---|
+| +29 s | `YYavicAirWiFiLayer::init` (native layer starts) |
+| +50 s | `IO80211SkywalkInterface::init` |
+| +51 s | `setInterfaceEnable YYavicAirWiFiLayerInterface` (Wi-Fi usable) |
+
+**Cause.** Two parts.
+
+1. A fixed ~30 s by design: `YY_AUTOARM_MIN_S = 20` (auto-arm not before 20 s after the kext starts) plus
+   a 10 s delay between arming and publishing the controller (`armNow`). Upstream documents it as "20-40
+   seconds after the kernel". There is no boot-arg to shorten it.
+2. A further 21.0 s gap between controller start and the Skywalk interface. 0.7.3's changelog ("faster
+   Wi-Fi at boot") describes a 21 s private-address change at the first join that made macOS time out and
+   retry. We did not trace the cause ourselves; the 21 s match and the result below are the evidence.
+
+**Fix.** Replace the kext with upstream `Kext/macOS15` 0.7.3. Plist, personalities, boot-args and the
+`24H32` gate are identical to 0.7.2 (diffed: only the version string differs in `Info.plist`; the binary
+adds an internal `yyavic-maclog` property), so `config.plist` and boot-args did not change and
+`-yyavicnoverify` is still required.
+
+Measured after the change on 15.8.3 (boot 20:02:35): `YYavicAirWiFiLayer::init` at +29 s, interface
+enabled at +30 s, versus +51 s before. Only the fixed ~30 s remains. Shortening it needs a rebuild of the
+kext with smaller constants (upstream source is GPL, `Source/YYavicAirWiFiLayer`); not done, because the 10 s
+arm delay exists so the trace reaches disk before anything can fail.
+
+Rollback: keep a copy of the old kext outside the ESP and `ditto` it back over
+`EFI/OC/Kexts/YYavicWiFi.kext` (0.7.2 SHA-256 of the binary `5db334dc…bfe2`, 0.7.3 `b226ba22…5e55`).
 
 ---
 

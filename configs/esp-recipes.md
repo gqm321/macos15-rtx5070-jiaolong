@@ -15,7 +15,7 @@ python3 tools/baremetal/build-efi-ref.py [flags] --out <image>
 |---|---|
 | `--cores N` | rewrites the four `algrey | Force cpuid_cores_per_package` patches to `N` (12 for 7845HX; the reference used 16) |
 | `--wifi` | adds `YYavicWiFi.kext` and appends `yyavic-cc=CN` to boot-args |
-| `--wifi-noverify` | also appends `-yyavicnoverify` (required on 15.8.2: 0.7.2 only accepts 24H32) |
+| `--wifi-noverify` | also appends `-yyavicnoverify` (required on 15.8.2 and 15.8.3: YYavicWiFi 0.7.x only accepts 24H32) |
 | `--voodoo-i2c` | adds VoodooI2C 2.9.1 + VoodooI2CHID, disables the PS/2 `VoodooInput`, appends `-vi2c-force-polling` |
 | `--restrictevents` | enables `RestrictEvents.kext` with `revpatch=sbvmm,cpuname` / `revcpuname=AMD Ryzen 9 7845HX` (update visibility) |
 | `--acpibl` | appends `nvrmacpibl=1` — required for brightness |
@@ -32,7 +32,7 @@ PS/2 kexts are added by default; the image is always 512 MiB FAT32, label `EFI`.
 
 | Image | Command | Purpose |
 |---|---|---|
-| `esp-baremetal-15.8.2.img` | `--cores 12 --wifi --wifi-noverify --voodoo-i2c --restrictevents --acpibl --shutdown-tool` | **current daily driver (15.8.2)** |
+| `esp-baremetal-15.8.2.img` | `--cores 12 --wifi --wifi-noverify --voodoo-i2c --restrictevents --acpibl --shutdown-tool` | **current daily driver (15.8.2, still used unchanged on 15.8.3)** |
 | `esp-baremetal.img` | `--cores 12 --wifi --acpibl --shutdown-tool` | 15.8.1 daily driver |
 | `esp-baremetal-bright.img` | `--cores 12 --wifi --acpibl` | brightness fix, before the shutdown tool existed |
 | `esp-baremetal-noacpibl.img` | `--cores 12 --wifi` | ruled `nvrmacpibl=1` out as the shutdown cause |
@@ -51,15 +51,17 @@ amfi_get_out_of_my_way=0x1 amfi=0x80 ipc_control_port_options=0 gfxrst=4
 yyavic-cc=CN nvrmacpibl=1 -yyavicnoverify -vi2c-force-polling
 ```
 
-`-yyavicnoverify` is the YYavicWiFi 0.7.2 tester switch that bypasses its `24H32` build gate; 15.8.2
-is `24H232`. `-vi2c-force-polling` makes the I2C touchpad use polling instead of a GPIO interrupt.
+`-yyavicnoverify` is the YYavicWiFi 0.7.x tester switch that bypasses its `24H32` build gate; 15.8.2
+is `24H232`, 15.8.3 is `24H241`. The live ESP now carries YYavicWiFi 0.7.3 (was 0.7.2; see
+troubleshooting #7); the same recipe is still used and `kexts/yyavic/` must hold the 0.7.3 kext. `-vi2c-force-polling` makes the I2C touchpad use polling instead of a GPIO interrupt.
 
 The live ESP was additionally patched on 2026-11-07 with the community SN6140 AppleALC (speakers,
 wired-headphone output, mic input and headphone hot-plug verified working); its boot-args end in
 `alcid=15 alcdelay=1000` and `layout-id` is data 15. Add `--sn6140-audio` to the recipe above to get
 that from a clean build (after `tools/baremetal/fetch-sn6140-applealc.sh`).
 
-On 15.8.2, macOS → Shut Down powers off normally; `--shutdown-tool` is kept as a fallback.
+On 15.8.2, macOS → Shut Down powers off normally; `--shutdown-tool` is kept as a fallback. The daily
+driver is now on 15.8.3 (24H241) with no recipe change.
 
 `debug=0x100` keeps a panic on screen instead of rebooting — useful, but it also means a panic looks like
 a frozen machine.
